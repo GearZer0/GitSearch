@@ -58,8 +58,12 @@ if __name__ == "__main__":
     # separating the repository name
     repo_name = matches[0][1]
     # collecting user info
+    print("user details")
+    print("-------------")
     getUserInfo(username)
     # collecting repository info
+    print("repository details")
+    print("------------------")
     getRepositoryInfo(username, repo_name)
     # TODO: getting page screenshot using urlscan
     # TODO: getting page screenshot using selenium
