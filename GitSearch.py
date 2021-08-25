@@ -61,7 +61,7 @@ def getLatestCommitDate(username, repo_name):
     last_commit_date = re.findall(r'Date:(.+?)\n', reverse)
     # finding the last commit date using regex
     if len(last_commit_date):
-        print("Last Commit On: {}".format(last_commit_date[-1].strip()))
+        print("Last Commit On: {}".format(last_commit_date[0].strip()))
     else:
         print("No last commit date found!")
 
