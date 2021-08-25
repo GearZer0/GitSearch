@@ -57,13 +57,14 @@ def getLatestCommitDate(username, repo_name):
     subprocess.getoutput('git clone {}'.format(link))
     # going to the cloned folder and executing the log
     reverse = subprocess.getoutput(
-        'cd {} && git log --reverse'.format(repo_name))
+        'cd {} && git log --reverse | tail -1'.format(repo_name))
+    print(reverse)
     last_commit_date = re.findall(r'Date:(.+?)\n', reverse)
     # finding the last commit date using regex
     if len(last_commit_date):
-        print("Last Commit On: {}".format(last_commit_date[0].strip()))
+        print("Earlier Commit On: {}".format(last_commit_date[0].strip()))
     else:
-        print("No last commit date found!")
+        print("No earliest commit date found!")
 
 
 if __name__ == "__main__":
