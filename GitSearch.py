@@ -2,6 +2,7 @@ import requests
 import sys
 import os
 import re
+import subprocess
 
 # checking if the parameter is correctly provided, alert if no parameter is present
 if len(sys.argv) < 2:
@@ -48,6 +49,23 @@ def getRepositoryInfo(username, repository_name):
     print("Pushed At: {}".format(resp.get('pushed_at')))
 
 
+# function to check last commit date, must have git installed
+def getLatestCommitDate(username, repo_name):
+    link = "https://github.com/{}/{}.git".format(
+        username, repo_name)
+    # cloning the repository
+    subprocess.getoutput('git clone {}'.format(link))
+    # going to the cloned folder and executing the log
+    reverse = subprocess.getoutput(
+        'cd {} && git log --reverse'.format(repo_name))
+    last_commit_date = re.findall(r'Date:(.+?)\n', reverse)
+    # finding the last commit date using regex
+    if len(last_commit_date):
+        print("Last Commit On: {}".format(last_commit_date[-1].strip()))
+    else:
+        print("No last commit date found!")
+
+
 if __name__ == "__main__":
     # putting the github file link in a variable
     git_page_link = sys.argv[1]
@@ -65,5 +83,7 @@ if __name__ == "__main__":
     print("repository details")
     print("------------------")
     getRepositoryInfo(username, repo_name)
+    # getting latest commit date
+    getLatestCommitDate(username, repo_name)
     # TODO: getting page screenshot using urlscan
     # TODO: getting page screenshot using selenium
