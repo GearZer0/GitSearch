@@ -48,8 +48,7 @@ def getRepositoryInfo(username, repository_name):
     print("Updated At: {}".format(resp.get('updated_at')))
     print("Pushed At: {}".format(resp.get('pushed_at')))
     contributors_url = resp.get('contributors_url')
-    # getting contributors list and their info
-    getContributorsInfo(contributors_url)
+    return contributors_url
 
 
 # function to check contributor data
@@ -62,14 +61,15 @@ def getContributorsInfo(contributors_url):
     except:
         print("Failed to open {}".format(contributors_url))
         return
-    print('Author info')
-    print('------------')
+    print('Contributor details')
+    print('--------------------')
     # looping over contributors if more than one
     for author in resp:
         # getting author username
         author_username = author.get('login')
         # using premade function to get author data
         getUserInfo(author_username)
+        print("")
 
 
 # function to check last commit date, must have git installed
@@ -86,7 +86,7 @@ def getLatestCommitDate(username, repo_name):
     last_commit_author = re.findall(r'Author:(.+?)\n', reverse)
     # finding the last commit date using regex
     if len(last_commit_date):
-        print("Earlier Commit On: {}".format(last_commit_date[0].strip()))
+        print("Earliest Commit On: {}".format(last_commit_date[0].strip()))
         print("Author: {}".format(last_commit_author[0].strip()))
     else:
         print("No earliest commit date found!")
@@ -95,10 +95,9 @@ def getLatestCommitDate(username, repo_name):
 def getFileLatestCommitDate(username, repo_name, git_page_link):
     # parsing the actual file name
     file_path = git_page_link.split('/')[-1]
+    print("File Name: {}".format(file_path))
     if file_path == "":
         return
-    print('File detail')
-    print('-----------')
     # going to the cloned folder and executing the log
     reverse = subprocess.getoutput(
         'cd {} && git log {}'.format(repo_name, file_path))
@@ -107,7 +106,7 @@ def getFileLatestCommitDate(username, repo_name, git_page_link):
     last_commit_author = re.findall(r'Author:(.+?)\n', reverse)
     # finding the last commit date using regex
     if len(last_commit_date):
-        print("Earlier Commit On: {}".format(last_commit_date[0].strip()))
+        print("Earliest Commit On: {}".format(last_commit_date[0].strip()))
         print("Author: {}".format(last_commit_author[0].strip()))
     else:
         print("No earliest commit date found!")
@@ -124,16 +123,21 @@ if __name__ == "__main__":
     # separating the repository name
     repo_name = matches[0][1]
     # collecting user info
-    print("user details")
+    print("User details")
     print("-------------")
     getUserInfo(username)
-    # collecting repository info
-    print("repository details")
+    # collecting repository info and receiving contributor url
+    print("Repository details")
     print("------------------")
-    getRepositoryInfo(username, repo_name)
+    contributors_url = getRepositoryInfo(username, repo_name)
     # getting latest commit date
     getLatestCommitDate(username, repo_name)
     # getting latest commit date for the given file
+    print('File details')
+    print('-----------')
     getFileLatestCommitDate(username, repo_name, git_page_link)
+    
+    # getting contributors list and their info
+    getContributorsInfo(contributors_url)
     # TODO: getting page screenshot using urlscan
     # TODO: getting page screenshot using selenium
