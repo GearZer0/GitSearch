@@ -100,7 +100,7 @@ def getFileLatestCommitDate(username, repo_name, git_page_link):
         return
     # going to the cloned folder and executing the log
     reverse = subprocess.getoutput(
-        'cd {} && git log {}'.format(repo_name, file_path))
+        'cd {} && git log --reverse {} '.format(repo_name, file_path))
     # print(reverse)
     last_commit_date = re.findall(r'Date:(.+?)\n', reverse)
     last_commit_author = re.findall(r'Author:(.+?)\n', reverse)
