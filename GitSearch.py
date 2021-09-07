@@ -139,5 +139,4 @@ if __name__ == "__main__":
     
     # getting contributors list and their info
     getContributorsInfo(contributors_url)
-    # TODO: getting page screenshot using urlscan
-    # TODO: getting page screenshot using selenium
+ 
