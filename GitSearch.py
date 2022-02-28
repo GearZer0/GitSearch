@@ -61,7 +61,7 @@ def getContributorsInfo(contributors_url):
     except:
         print("Failed to open {}".format(contributors_url))
         return
-    print('Contributor details')
+    print('\n\nContributor details')
     print('--------------------')
     # looping over contributors if more than one
     for author in resp:
@@ -92,6 +92,8 @@ def getLatestCommitDate(username, repo_name):
         print("No earliest commit date found!")
 
 # function to get latest commit date for the input file
+
+
 def getFileLatestCommitDate(username, repo_name, git_page_link):
     # parsing the actual file name
     file_path = git_page_link.split('/')[-1]
@@ -100,17 +102,10 @@ def getFileLatestCommitDate(username, repo_name, git_page_link):
         return
     # going to the cloned folder and executing the log
     reverse = subprocess.getoutput(
-        'cd {} && git log --reverse {} '.format(repo_name, file_path))
+        'cd ' + repo_name.replace('/blob/master', '') + ' && git log --reverse --pretty=format:"%an %ad" ' + file_path)
     # print(reverse)
-    last_commit_date = re.findall(r'Date:(.+?)\n', reverse)
-    last_commit_author = re.findall(r'Author:(.+?)\n', reverse)
     # finding the last commit date using regex
-    if len(last_commit_date):
-        print("Earliest Commit On: {}".format(last_commit_date[0].strip()))
-        print("Author: {}".format(last_commit_author[0].strip()))
-    else:
-        print("No earliest commit date found!")
-
+    print("Latest Commit Data: {}".format(reverse.split('\n')[0]))
 
 
 if __name__ == "__main__":
@@ -118,25 +113,30 @@ if __name__ == "__main__":
     git_page_link = sys.argv[1]
     # parsing the username and the repository from the input parameter
     matches = re.findall(r'github\.com/(.+?)/(.+?)/', git_page_link)
+    # parsing full repo link for single file
+    matches2 = re.findall(r'github\.com/(.+?)/(.+)/', git_page_link)
     # separating the username
     username = matches[0][0]
     # separating the repository name
     repo_name = matches[0][1]
+    # used for single file
+    repo_name_full = matches2[0][1]
     # collecting user info
-    print("User details")
+    print("\n\nUser details")
     print("-------------")
     getUserInfo(username)
     # collecting repository info and receiving contributor url
-    print("Repository details")
+    print("\n\nRepository details")
     print("------------------")
     contributors_url = getRepositoryInfo(username, repo_name)
     # getting latest commit date
     getLatestCommitDate(username, repo_name)
     # getting latest commit date for the given file
-    print('File details')
+    print('\n\nFile details')
     print('-----------')
-    getFileLatestCommitDate(username, repo_name, git_page_link)
-    
+    getFileLatestCommitDate(username, repo_name_full, git_page_link)
+
     # getting contributors list and their info
     getContributorsInfo(contributors_url)
- 
+    # TODO: getting page screenshot using urlscan
+    # TODO: getting page screenshot using selenium
