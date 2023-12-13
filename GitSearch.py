@@ -27,7 +27,7 @@ COMBINING_OPTION = ""
 all_repos = []
 
 # checking if the parameter is correctly provided, alert if no parameter is present
-if len(sys.argv) < 2:
+if len(sys.argv) < 2 or sys.argv[1] == '--help' or sys.argv[1] == '-h':
     print()
     print(colored("usage:\n", 'green'))
     print(colored("\ngenerate CSV report for every branch of each repo:", 'blue'))
@@ -49,7 +49,10 @@ def getReposFromTXT(path):
     file = open(path, "r").read()
     return list(filter(None, file.split("\n")))
 
+
 # Yield pages from GitHub API (uses make_request_to_github function)
+
+
 def search_github(url):
     session = requests.Session()
 
@@ -76,7 +79,10 @@ def search_github(url):
 def get_next_page(page):
     return page if page.headers.get('link') != None else None
 
+
 # GitHub API request helper - tokens setting and error handling
+
+
 def make_request_to_github(url, returnRaw=False):
     global CURRENT_TOKEN_INDEX
     while True:
@@ -98,7 +104,10 @@ def make_request_to_github(url, returnRaw=False):
             response = response.json()
             return response
 
+
 # Write repo data to CSV based on repo_link parameter
+
+
 def getRepoDataToCSV(repo_link, isFork=False, originalRepoUsername=None, originalRepoName=None):
     username, repo_name = extractRepoAndUserFromURL(repo_link)
     clone_path = './bare_clones/' + f'{username}__{repo_name}'
@@ -123,7 +132,7 @@ def getRepoDataToCSV(repo_link, isFork=False, originalRepoUsername=None, origina
             'cd {} && git symbolic-ref HEAD refs/heads/{}'.format(clone_path, branch))
         for commit in Repository(clone_path).traverse_commits():
             all_repos[-1]["contributors"][commit.author.email] = {"email": commit.author.email, "name": commit.author.name,
-                                                                    "commit_count": all_repos[-1]["contributors"][commit.author.email]["commit_count"] + 1 if all_repos[-1]["contributors"][commit.author.email] else 1}
+                                                                  "commit_count": all_repos[-1]["contributors"][commit.author.email]["commit_count"] + 1 if all_repos[-1]["contributors"][commit.author.email] else 1}
             for file in commit.modified_files:
                 commits.append({"branch": branch, "username": username, "repo_name": repo_name, "modified_file": file.filename, "hash": commit.hash,
                                 "author_name": commit.author.name, "author_email": commit.author.email, "commit_date_utc": commit.committer_date.astimezone(datetime.timezone.utc), "msg": commit.msg, "full_path": file.new_path, "change_type": file.change_type.name})
@@ -158,7 +167,10 @@ def getRepoDataToCSV(repo_link, isFork=False, originalRepoUsername=None, origina
         print(colored(
             "[ERROR] Can't Delete Cloned Repo. Please Ensure You Run This Script in Admin Privileges", 'red'))
 
+
 # Generate combined CSV files based on provided combining option
+
+
 def combine(commits, path):
     file_exists = os.path.isfile(path)
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -172,7 +184,10 @@ def combine(commits, path):
             commit["owner/repo"] = f'{commit["username"]}/{commit["repo_name"]}'
             writer.writerow(commit)
 
+
 # Write fork data to CSV based on repo_link parameter (uses getRepoDataToCSV function)
+
+
 def getForkDataToCSV(repo_link):
     print(colored(f"[INFO] Getting Fork Data for {repo_link}...", 'blue'))
     forks = []
@@ -188,7 +203,10 @@ def getForkDataToCSV(repo_link):
                                        "updated_at": repo["updated_at"], "pushed_at": repo["pushed_at"]})
         getRepoDataToCSV(repo["html_url"], True, username, repo_name)
 
+
 # Write all users of a repo to CSV file
+
+
 def write_users_data_to_CSV(users):
     path = './reports/users.csv'
     file_exists = os.path.isfile(path)
@@ -208,27 +226,54 @@ def extractRepoAndUserFromURL(link):
     repo_name = matches[2]
     return username, repo_name
 
+
 # Clone original of all repos and their forks with all branches
+
+
 def cloneAllRepos():
+    wd = os.getcwd()
     for repo in all_repos:
         username, repo_name = extractRepoAndUserFromURL(repo["repo_link"])
         clone_name = f'{username}__{repo_name}'
         mainPath = f"clones/{clone_name}"
-        forksPath = f"{mainPath}/forks/"
+        forksPath = f"{mainPath}/forks"
         # os.makedirs(os.path.dirname(mainPath), exist_ok=True)
-        os.makedirs(os.path.dirname(forksPath), exist_ok=True)
+        os.makedirs(forksPath, exist_ok=True)
+        os.chdir(mainPath)
         out = subprocess.getoutput(
-            f'cd {mainPath} && git clone {repo["repo_link"]} {clone_name}')
+            f'git clone {repo["repo_link"]} {clone_name}')
+        os.chdir(clone_name)
+        branches = subprocess.getoutput(
+            f'git branch -r')
+        branches = list(map(lambda rb: rb[7:], [b.strip(
+            '* ') for b in branches.splitlines()][2:]))
+        for branch in branches:
+            subprocess.getoutput(
+                f'git branch {branch}')
         print(colored(f"[INFO] {out}", 'blue'))
+        os.chdir(wd)
         for fork in repo["forks"]:
             f_username, f_repo_name = extractRepoAndUserFromURL(
                 fork["fork_link"])
             fork_clone_name = f'{f_username}__{f_repo_name}'
+            os.chdir(forksPath)
             out = subprocess.getoutput(
-                f'cd {forksPath} && git clone {fork["fork_link"]} {fork_clone_name}')
+                f'git clone {fork["fork_link"]} {fork_clone_name}')
+            os.chdir(fork_clone_name)
+            branches = subprocess.getoutput(
+                f'git branch -r')
+            branches = list(map(lambda rb: rb[7:], [b.strip(
+                '* ') for b in branches.splitlines()][2:]))
+            for branch in branches:
+                subprocess.run(
+                    f'git branch {branch}', shell=True)
             print(colored(f"[INFO] {out}", 'blue'))
+            os.chdir(wd)
+
 
 # Report helpful information about repo, forks, users, etc. on console
+
+
 def printRepoAndUserData(repo_link):
     users = []
     print(colored(
@@ -284,7 +329,7 @@ def printRepoAndUserData(repo_link):
         ["email", "name", "commit count"], max_width=60)
     for cc in all_repos[-1]["contributors"].items():
         users.append({"username": None, "repo_name": f"{username}/{repo_name}", "email": all_repos[-1]["contributors"][cc[0]]["email"], "name": all_repos[-1]["contributors"][cc[0]]["name"], "company": None,
-                              "bio": None, "user_created_at": None, "user_updated_at": None, "repo": repo_link, "fork": repo_resp["fork"], "forked_from": repo_resp["parent"]["html_url"] if repo_resp["fork"] else None, "repo_created_at": repo_resp["created_at"], "branches": all_repos[-1]["branches"]})
+                      "bio": None, "user_created_at": None, "user_updated_at": None, "repo": repo_link, "fork": repo_resp["fork"], "forked_from": repo_resp["parent"]["html_url"] if repo_resp["fork"] else None, "repo_created_at": repo_resp["created_at"], "branches": all_repos[-1]["branches"]})
         commit_contributors_table.add_row(
             [all_repos[-1]["contributors"][cc[0]]["email"], all_repos[-1]["contributors"][cc[0]]["name"], all_repos[-1]["contributors"][cc[0]]["commit_count"]])
     print(colored(
@@ -327,7 +372,7 @@ if __name__ == "__main__":
     if (not arg.startswith('https://') and arg.endswith('.txt')):
         repo_links = getReposFromTXT(arg)
     else:
-        repo_links = sys.argv[1:]
+        repo_links = list(filter(lambda o: not o.startswith('--'), sys.argv[1:]))
     for i, repo in enumerate(repo_links):
         username, repo_name = extractRepoAndUserFromURL(repo)
         repo = f"https://github.com/{username}/{repo_name}"
