@@ -22,9 +22,15 @@ GITHUB_HEADERS = {
 if (len(TOKENS)):
     GITHUB_HEADERS['authorization'] = f"Bearer {TOKENS[CURRENT_TOKEN_INDEX]}"
 
+COMBINING_OPTIONS = ['--combineall', '--combinerepo', '--combinefork']
+EXPANDING_OPTIONS = ['--expandedsearch',
+                     '--escontributors', '--esforkers', '--esuser']
 COMBINING_OPTION = ""
+EXPANDING_OPTION = ""
+USER_FOR_EXPANDED_SEARCH = ""
 
 all_repos = []
+users = []
 
 # checking if the parameter is correctly provided, alert if no parameter is present
 if len(sys.argv) < 2 or sys.argv[1] == '--help' or sys.argv[1] == '-h':
@@ -36,11 +42,19 @@ if len(sys.argv) < 2 or sys.argv[1] == '--help' or sys.argv[1] == '-h':
     print(
         colored("\tpython {} path/to/repo-links-file.txt".format(sys.argv[0]), 'yellow'), colored("[option]", "red"))
     print(colored("\n--combineall", "red"),
-          colored("\tcombine all repos with their forks as well as their branches into one CSV", 'blue'))
+          colored("\t\tcombine all repos with their forks as well as their branches into one CSV", 'blue'))
     print(colored("--combinerepo", "red"),
-          colored("\tcombine all repos with their branches into one CSV", 'blue'))
+          colored("\t\tcombine all repos with their branches into one CSV", 'blue'))
     print(colored("--combinefork", "red"),
-          colored("\tcombine forks of each repo with their branches into CSV", 'blue'))
+          colored("\t\tcombine forks of each repo with their branches into CSV", 'blue'))
+    print(colored("--expandedsearch", "red"),
+          colored("\tscan each branch of every repo of the each contributor and the forker user of the input repo to get emails from the commit history", 'blue'))
+    print(colored("--esforkers", "red"),
+          colored("\t\tscan each branch of every repo of the each forker user of the input repo to get emails from the commit history", 'blue'))
+    print(colored("--escontributors", "red"),
+          colored("\tscan each branch of every repo of the each contributor user of the input repo to get emails from the commit history", 'blue'))
+    print(colored("--esuser", "red"), colored("username", "yellow"),
+          colored("\tscan each branch of every repo of the exact user to get emails from the commit history", 'blue'))
     print()
     exit(0)
 
@@ -116,7 +130,7 @@ def getRepoDataToCSV(repo_link, isFork=False, originalRepoUsername=None, origina
     subprocess.getoutput(
         'git clone --mirror {} {}'.format(repo_link, clone_path))
     subprocess.getoutput(
-        f'git config --global --add safe.directory {clone_path}')
+        f'git config --add safe.directory {clone_path}')
     print(colored("[DONE]", 'green'))
     out = subprocess.getoutput(
         'cd {} && git branch'.format(clone_path))
@@ -132,10 +146,10 @@ def getRepoDataToCSV(repo_link, isFork=False, originalRepoUsername=None, origina
             'cd {} && git symbolic-ref HEAD refs/heads/{}'.format(clone_path, branch))
         for commit in Repository(clone_path).traverse_commits():
             all_repos[-1]["contributors"][commit.author.email] = {"email": commit.author.email, "name": commit.author.name,
-                                                                  "commit_count": all_repos[-1]["contributors"][commit.author.email]["commit_count"] + 1 if all_repos[-1]["contributors"][commit.author.email] else 1}
+                                                                  "commit_count": all_repos[-1]["contributors"][commit.author.email]["commit_count"] + 1 if all_repos[-1]["contributors"][commit.author.email] else 1, "branches": list(all_repos[-1]["contributors"][commit.author.email]["branches"]) + [branch] if branch not in list(all_repos[-1]["contributors"][commit.author.email]["branches"]) else all_repos[-1]["contributors"][commit.author.email]["branches"]}
             for file in commit.modified_files:
                 commits.append({"branch": branch, "username": username, "repo_name": repo_name, "modified_file": file.filename, "hash": commit.hash,
-                                "author_name": commit.author.name, "author_email": commit.author.email, "commit_date_utc": commit.committer_date.astimezone(datetime.timezone.utc), "msg": commit.msg, "full_path": file.new_path, "change_type": file.change_type.name})
+                                "author_name": commit.author.name, "author_email": commit.author.email, "committer_name": commit.committer.name, "committer_email": commit.committer.email, "commit_date_utc": commit.committer_date.astimezone(datetime.timezone.utc), "msg": commit.msg, "full_path": file.new_path, "change_type": file.change_type.name})
     if (not isFork):
         all_repos[-1]["earliest_commit_date"] = commits[0]["commit_date_utc"].astimezone(
             datetime.timezone.utc)
@@ -145,7 +159,7 @@ def getRepoDataToCSV(repo_link, isFork=False, originalRepoUsername=None, origina
     print(colored("[INFO] Getting Commit Data to CSV...", 'blue'))
     with open(pathToCSV, "w", newline='', encoding="utf-8") as csv_output_file:
         writer = csv.DictWriter(
-            csv_output_file, fieldnames=['branch', 'modified_file', 'hash', 'author_name', 'author_email', 'commit_date_utc', 'msg', 'full_path', 'change_type'], extrasaction='ignore')
+            csv_output_file, fieldnames=['branch', 'modified_file', 'hash', 'author_name', 'author_email', 'committer_name', 'committer_email', 'commit_date_utc', 'msg', 'full_path', 'change_type'], extrasaction='ignore')
 
         writer.writeheader()
         writer.writerows(commits)
@@ -176,7 +190,7 @@ def combine(commits, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", newline='', encoding="utf-8") as csv_output_file:
         writer = csv.DictWriter(
-            csv_output_file, fieldnames=['owner/repo', 'username', 'repo_name', 'branch', 'modified_file', 'hash', 'author_name', 'author_email', 'commit_date_utc', 'msg', 'full_path', 'change_type'])
+            csv_output_file, fieldnames=['owner/repo', 'username', 'repo_name', 'branch', 'modified_file', 'hash', 'author_name', 'author_email', 'committer_name', 'committer_email', 'commit_date_utc', 'msg', 'full_path', 'change_type'])
 
         if not file_exists:
             writer.writeheader()
@@ -213,11 +227,25 @@ def write_users_data_to_CSV(users):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", newline='', encoding="utf-8") as csv_output_file:
         writer = csv.DictWriter(
-            csv_output_file, fieldnames=['username', 'repo_name', 'email', 'name', 'company', 'bio', 'user_created_at', 'user_updated_at', 'repo', 'fork', 'forked_from', 'repo_created_at', 'branches'])
+            csv_output_file, extrasaction='ignore', fieldnames=['username', 'repo_name', 'email', 'name', 'location', 'company', 'website', 'bio', 'twitter', 'user_created_at', 'user_updated_at', 'repo', 'fork', 'forked_from', 'repo_created_at', 'branches'])
 
         if not file_exists:
             writer.writeheader()
         writer.writerows(users)
+
+
+def write_emails_data_to_CSV(username, repo, emails):
+    path = './reports/emails.csv'
+    file_exists = os.path.isfile(path)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "a", newline='', encoding="utf-8") as csv_output_file:
+        writer = csv.DictWriter(
+            csv_output_file, fieldnames=['username', 'repo', 'emails'])
+
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(
+            {"username": username, "repo": repo, "emails": emails})
 
 
 def extractRepoAndUserFromURL(link):
@@ -275,7 +303,6 @@ def cloneAllRepos():
 
 
 def printRepoAndUserData(repo_link):
-    users = []
     print(colored(
         f'\n\n\n----------------------------------------{repo_link.upper()}----------------------------------------\n\n\n', 'red'))
     username, repo_name = extractRepoAndUserFromURL(repo_link)
@@ -285,9 +312,9 @@ def printRepoAndUserData(repo_link):
         print(colored("[ERROR] Exceeded GitHub API rate-limit", 'red'))
     else:
         user_table = PrettyTable(
-            ["username", "email", "name", "company", "bio", "created at", "updated at"], max_width=25)
+            ["username", "email", "name", "location", "company", "website", "bio", "twitter", "created at", "updated at"], max_width=15)
         user_table.add_row([user_resp["login"],
-                            user_resp["email"], user_resp["name"], user_resp["company"], user_resp["bio"].replace("\r\n", " ") if user_resp["bio"] else None, user_resp["created_at"], user_resp["updated_at"]])
+                            user_resp["email"], user_resp["name"], user_resp["location"], user_resp["company"], user_resp["blog"], user_resp["bio"].replace("\r\n", " ") if user_resp["bio"] else None, user_resp["twitter_username"], user_resp["created_at"], user_resp["updated_at"]])
         print(colored('\n--------------------OWNER DATA--------------------\n', 'green'))
         print(user_table)
     repo_resp = make_request_to_github(
@@ -303,30 +330,30 @@ def printRepoAndUserData(repo_link):
                             repo_resp["updated_at"], repo_resp["pushed_at"], all_repos[-1]["earliest_commit_date"], all_repos[-1]["branches"], repo_resp["forks"]])
         print(colored('\n--------------------REPO DATA--------------------\n', 'green'))
         print(repo_table)
-    users.append({"username": user_resp["login"], "repo_name": f"{username}/{repo_name}", "email": user_resp["email"], "name": user_resp["name"], "company": user_resp["company"],
-                  "bio": user_resp["bio"], "user_created_at": user_resp["created_at"], "user_updated_at": user_resp["updated_at"], "repo": repo_link, "fork": repo_resp["fork"], "forked_from": repo_resp["parent"]["html_url"] if repo_resp["fork"] else None, "repo_created_at": repo_resp["created_at"], "branches": all_repos[-1]["branches"]})
+    users.append({"username": user_resp["login"], "repo_name": f"{username}/{repo_name}", "email": user_resp["email"], "name": user_resp["name"], "location": user_resp["location"], "company": user_resp["company"],
+                  "website": user_resp["blog"], "bio": user_resp["bio"], "twitter": user_resp["twitter_username"], "user_created_at": user_resp["created_at"], "user_updated_at": user_resp["updated_at"], "repo": repo_link, "fork": repo_resp["fork"], "forked_from": repo_resp["parent"]["html_url"] if repo_resp["fork"] else None, "repo_created_at": repo_resp["created_at"], "branches": all_repos[-1]["branches"], "expanded_search": False})
     contributors_resp = make_request_to_github(
         repo_resp["contributors_url"])
     if (contributors_resp == None):
         print(colored("[ERROR] Exceeded GitHub API rate-limit", 'red'))
     else:
         contributors_table = PrettyTable(
-            ["username", "email", "name", "company", "bio", "created at", "updated at"], max_width=25)
+            ["username", "email", "name", "location", "company", "website", "bio", "twitter", "created at", "updated at"], max_width=15)
         for user in contributors_resp:
             contributor_user_resp = make_request_to_github(
                 user["url"])
             if (contributor_user_resp == None):
                 print(colored("[ERROR] Exceeded GitHub API rate-limit", 'red'))
             else:
-                users.append({"username": contributor_user_resp["login"], "repo_name": f"{username}/{repo_name}", "email": contributor_user_resp["email"], "name": contributor_user_resp["name"], "company": contributor_user_resp["company"],
-                              "bio": contributor_user_resp["bio"], "user_created_at": contributor_user_resp["created_at"], "user_updated_at": contributor_user_resp["updated_at"], "repo": repo_link, "fork": repo_resp["fork"], "forked_from": repo_resp["parent"]["html_url"] if repo_resp["fork"] else None, "repo_created_at": repo_resp["created_at"], "branches": all_repos[-1]["branches"]})
+                users.append({"username": contributor_user_resp["login"], "repo_name": f"{username}/{repo_name}", "email": contributor_user_resp["email"], "name": contributor_user_resp["name"], "location": contributor_user_resp["location"], "company": contributor_user_resp["company"],
+                              "website": contributor_user_resp["blog"], "bio": contributor_user_resp["bio"], "twitter": contributor_user_resp["twitter_username"], "user_created_at": contributor_user_resp["created_at"], "user_updated_at": contributor_user_resp["updated_at"], "repo": repo_link, "fork": repo_resp["fork"], "forked_from": repo_resp["parent"]["html_url"] if repo_resp["fork"] else None, "repo_created_at": repo_resp["created_at"], "branches": all_repos[-1]["branches"], "expanded_search": True if EXPANDING_OPTION != "esforkers" else False})
                 contributors_table.add_row([contributor_user_resp["login"],
-                                            contributor_user_resp["email"], contributor_user_resp["name"], contributor_user_resp["company"], contributor_user_resp["bio"].replace("\r\n", " ") if contributor_user_resp["bio"] else None, contributor_user_resp["created_at"], contributor_user_resp["updated_at"]])
+                                            contributor_user_resp["email"], contributor_user_resp["name"], contributor_user_resp["location"], contributor_user_resp["company"], contributor_user_resp["blog"], contributor_user_resp["bio"].replace("\r\n", " ") if contributor_user_resp["bio"] else None, contributor_user_resp["twitter_username"], contributor_user_resp["created_at"], contributor_user_resp["updated_at"]])
         print(colored(
             '\n--------------------CONTRIBUTORS DATA (GITHUB)--------------------\n', 'green'))
         print(contributors_table)
     commit_contributors_table = PrettyTable(
-        ["email", "name", "commit count"], max_width=60)
+        ["email", "name", "commit count"], max_width=45)
     for cc in all_repos[-1]["contributors"].items():
         users.append({"username": None, "repo_name": f"{username}/{repo_name}", "email": all_repos[-1]["contributors"][cc[0]]["email"], "name": all_repos[-1]["contributors"][cc[0]]["name"], "company": None,
                       "bio": None, "user_created_at": None, "user_updated_at": None, "repo": repo_link, "fork": repo_resp["fork"], "forked_from": repo_resp["parent"]["html_url"] if repo_resp["fork"] else None, "repo_created_at": repo_resp["created_at"], "branches": all_repos[-1]["branches"]})
@@ -336,7 +363,7 @@ def printRepoAndUserData(repo_link):
         '\n--------------------CONTRIBUTORS DATA (COMMIT)--------------------\n', 'green'))
     print(commit_contributors_table)
     forks_table = PrettyTable(
-        ["fork url", "fork date", "branches", "username", "email", "name", "company", "bio", "created at", "updated at"], max_width=15)
+        ["fork url", "fork date", "branches", "username", "email", "name", "location", "company", "website", "bio", "twitter", "created at", "updated at"], max_width=10)
     for fork in all_repos[-1]["forks"]:
         username, repo_name = extractRepoAndUserFromURL(fork["fork_link"])
         fork_user_resp = make_request_to_github(
@@ -344,10 +371,10 @@ def printRepoAndUserData(repo_link):
         if (fork_user_resp == None):
             print(colored("[ERROR] Exceeded GitHub API rate-limit", 'red'))
         else:
-            users.append({"username": fork_user_resp["login"], "repo_name": f"{username}/{repo_name}", "email": fork_user_resp["email"], "name": fork_user_resp["name"], "company": fork_user_resp["company"],
-                          "bio": fork_user_resp["bio"], "user_created_at": fork_user_resp["created_at"], "user_updated_at": fork_user_resp["updated_at"], "repo": fork["fork_link"], "fork": True, "forked_from": repo_link, "repo_created_at": fork["created_at"], "branches": fork["branches"]})
+            users.append({"username": fork_user_resp["login"], "repo_name": f"{username}/{repo_name}", "email": fork_user_resp["email"], "name": fork_user_resp["name"], "location": fork_user_resp["location"], "company": fork_user_resp["company"],
+                          "website": fork_user_resp["blog"], "bio": fork_user_resp["bio"], "twitter": fork_user_resp["twitter_username"], "user_created_at": fork_user_resp["created_at"], "user_updated_at": fork_user_resp["updated_at"], "repo": fork["fork_link"], "fork": True, "forked_from": repo_link, "repo_created_at": fork["created_at"], "branches": fork["branches"], "expanded_search": True if EXPANDING_OPTION != "escontributors" else False})
             forks_table.add_row([fork["fork_link"], fork["created_at"], fork["branches"], fork_user_resp["login"],
-                                fork_user_resp["email"], fork_user_resp["name"], fork_user_resp["company"], fork_user_resp["bio"].replace("\r\n", " ") if fork_user_resp["bio"] else None, fork_user_resp["created_at"], fork_user_resp["updated_at"]])
+                                fork_user_resp["email"], fork_user_resp["name"], fork_user_resp["location"], fork_user_resp["company"], fork_user_resp["blog"], fork_user_resp["bio"].replace("\r\n", " ") if fork_user_resp["bio"] else None, fork_user_resp["twitter_username"], fork_user_resp["created_at"], fork_user_resp["updated_at"]])
     print(colored(
         '\n--------------------FORK DATA--------------------\n', 'green'))
     print(forks_table)
@@ -362,25 +389,97 @@ def printRepoAndUserData(repo_link):
     write_users_data_to_CSV(users)
 
 
+def get_emails_from_users_repos():
+    print(colored(
+        "[INFO] Getting Emails from Repos", 'blue'))
+    regex = "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}\\b"
+    toLowerCaseExpression = "{print tolower($0)}"
+    wd = os.getcwd()
+    usernames = []
+    repos = []
+    emails = []
+    if USER_FOR_EXPANDED_SEARCH:
+        usernames = [USER_FOR_EXPANDED_SEARCH]
+    else:
+        for user in users:
+            usernames.append(
+                user["username"]) if user["username"] and user["expanded_search"] == True and user["username"] not in usernames else True
+
+    for username in usernames:
+        for page_data in search_github(f"https://api.github.com/users/{username}/repos"):
+            repos.extend(page_data)
+        for repo in repos:
+            repo_emails = []
+            u = repo["owner"]["login"]
+            r = repo["name"]
+            clone_path = 'bare_clones/' + f'{u}__{r}'
+            print(colored(
+                f"[INFO] Cloning {repo['html_url']} Repo...", 'blue'))
+            subprocess.getoutput(
+                f'git clone --mirror {repo["html_url"]} {clone_path}')
+            subprocess.getoutput(
+                f'git config --add safe.directory {clone_path}')
+            print(colored("[DONE]", 'green'))
+            os.chdir(clone_path)
+            out = subprocess.getoutput('git branch')
+            branches = [b.strip('* ') for b in out.splitlines()]
+            for branch in branches:
+                emails_output = subprocess.getoutput(
+                    "git symbolic-ref HEAD refs/heads/{} && git shortlog -sea | grep -E -o '{}' | awk '{}' | uniq | grep -wv 'users.noreply.github.com' && git shortlog -sec | grep -E -o '{}' | awk '{}' | uniq | grep -wv 'users.noreply.github.com'".format(branch, regex, toLowerCaseExpression, regex, toLowerCaseExpression))
+                emails.extend(emails_output.split('\n'))
+                emails = list(set(emails))
+                repo_emails.extend(emails_output.split('\n'))
+                repo_emails = list(set(repo_emails))
+            os.chdir(wd)
+            emails_table = PrettyTable(
+                ["username", "repo", "emails"], max_width=45)
+            emails_table.add_row([u, r, repo_emails])
+            print(emails_table)
+            print(colored(
+                f"[INFO] Getting Email Data to CSV", 'blue'))
+            write_emails_data_to_CSV(u, r, repo_emails)
+            print(colored("[DONE]", 'green'))
+            try:
+                if not os.access('./bare_clones/', os.W_OK):
+                    os.chmod('./bare_clones/', stat.S_IWRITE)
+                shutil.rmtree('./bare_clones/', ignore_errors=True)
+            except:
+                print(colored(
+                    "[ERROR] Can't Delete Cloned Repo. Please Ensure You Run This Script in Admin Privileges", 'red'))
+    print(colored(
+        "[DONE] Getting Emails from Repos Completed", 'green'))
+
+
 if __name__ == "__main__":
     print(colored("[INFO] Script Started", 'blue'))
     arg = sys.argv[1]
-    options = list(filter(lambda o: o.startswith('--'), sys.argv))
-    if len(options):
-        COMBINING_OPTION = options[0][2:]
+    given_combining_options = list(
+        filter(lambda o: o in COMBINING_OPTIONS, sys.argv))
+    given_expanding_options = list(
+        filter(lambda o: o in EXPANDING_OPTIONS, sys.argv))
+    if len(given_combining_options):
+        COMBINING_OPTION = given_combining_options[0][2:]
+    if len(given_expanding_options):
+        EXPANDING_OPTION = given_expanding_options[0][2:]
+        if (EXPANDING_OPTION == 'esuser'):
+            USER_FOR_EXPANDED_SEARCH = sys.argv[sys.argv.index('--esuser') + 1]
     repo_links = []
     if (not arg.startswith('https://') and arg.endswith('.txt')):
         repo_links = getReposFromTXT(arg)
     else:
-        repo_links = list(filter(lambda o: not o.startswith('--'), sys.argv[1:]))
+        repo_links = list(
+            filter(lambda o: 'github.com' in o, sys.argv[1:]))
     for i, repo in enumerate(repo_links):
         username, repo_name = extractRepoAndUserFromURL(repo)
         repo = f"https://github.com/{username}/{repo_name}"
+        def recursive_dd(): return defaultdict(recursive_dd)
         all_repos.append(
-            {"repo_link": repo, "forks": [], "contributors": defaultdict(dict)})
+            {"repo_link": repo, "forks": [], "contributors": recursive_dd()})
         getRepoDataToCSV(repo)
         getForkDataToCSV(repo)
         printRepoAndUserData(repo)
     print(colored("[DONE] All Reports Generated\n", 'green'))
     print(colored("[INFO] Cloning Original of All Repos...\n", 'blue'))
     cloneAllRepos()
+    if EXPANDING_OPTION:
+        get_emails_from_users_repos()
