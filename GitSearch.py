@@ -36,25 +36,25 @@ users = []
 if len(sys.argv) < 2 or sys.argv[1] == '--help' or sys.argv[1] == '-h':
     print()
     print(colored("usage:\n", 'green'))
-    print(colored("\ngenerate CSV report for every branch of each repo:", 'blue'))
+    print(colored("\ngenerate CSV report for every branch of each repo:", 'magenta'))
     print(colored(
         "\tpython {} https://github.com/user/repo https://github.com/user0/repo ...".format(sys.argv[0]), 'yellow'), colored("[option]", "red"))
     print(
         colored("\tpython {} path/to/repo-links-file.txt".format(sys.argv[0]), 'yellow'), colored("[option]", "red"))
     print(colored("\n--combineall", "red"),
-          colored("\t\tcombine all repos with their forks as well as their branches into one CSV", 'blue'))
+          colored("\t\tcombine all repos with their forks as well as their branches into one CSV", 'magenta'))
     print(colored("--combinerepo", "red"),
-          colored("\t\tcombine all repos with their branches into one CSV", 'blue'))
+          colored("\t\tcombine all repos with their branches into one CSV", 'magenta'))
     print(colored("--combinefork", "red"),
-          colored("\t\tcombine forks of each repo with their branches into CSV", 'blue'))
+          colored("\t\tcombine forks of each repo with their branches into CSV", 'magenta'))
     print(colored("--expandedsearch", "red"),
-          colored("\tscan each branch of every repo of the each contributor and the forker user of the input repo to get emails from the commit history", 'blue'))
+          colored("\tscan each branch of every repo of the each contributor and the forker user of the input repo to get emails from the commit history", 'magenta'))
     print(colored("--esforkers", "red"),
-          colored("\t\tscan each branch of every repo of the each forker user of the input repo to get emails from the commit history", 'blue'))
+          colored("\t\tscan each branch of every repo of the each forker user of the input repo to get emails from the commit history", 'magenta'))
     print(colored("--escontributors", "red"),
-          colored("\tscan each branch of every repo of the each contributor user of the input repo to get emails from the commit history", 'blue'))
+          colored("\tscan each branch of every repo of the each contributor user of the input repo to get emails from the commit history", 'magenta'))
     print(colored("--esuser", "red"), colored("username", "yellow"),
-          colored("\tscan each branch of every repo of the exact user to get emails from the commit history", 'blue'))
+          colored("\tscan each branch of every repo of the exact user to get emails from the commit history", 'magenta'))
     print()
     exit(0)
 
@@ -106,7 +106,7 @@ def make_request_to_github(url, returnRaw=False):
             if (CURRENT_TOKEN_INDEX+1 < len(TOKENS)):
                 CURRENT_TOKEN_INDEX += 1
                 print(colored(
-                    f"[INFO] Switching to Token {CURRENT_TOKEN_INDEX+1} ...", 'blue'))
+                    f"[INFO] Switching to Token {CURRENT_TOKEN_INDEX+1} ...", 'magenta'))
                 GITHUB_HEADERS['authorization'] = f"Bearer {TOKENS[CURRENT_TOKEN_INDEX]}"
                 continue
             else:
@@ -126,7 +126,7 @@ def getRepoDataToCSV(repo_link, isFork=False, originalRepoUsername=None, origina
     username, repo_name = extractRepoAndUserFromURL(repo_link)
     clone_path = './bare_clones/' + f'{username}__{repo_name}'
     print(colored(
-        f"[INFO] Cloning {repo_link} Repo{' (Fork)' if isFork else ''}...", 'blue'))
+        f"[INFO] Cloning {repo_link} Repo{' (Fork)' if isFork else ''}...", 'magenta'))
     subprocess.getoutput(
         'git clone --mirror {} {}'.format(repo_link, clone_path))
     subprocess.getoutput(
@@ -143,7 +143,7 @@ def getRepoDataToCSV(repo_link, isFork=False, originalRepoUsername=None, origina
     commits = []
     for branch in branches:
         subprocess.getoutput(
-            'cd {} && git symbolic-ref HEAD refs/heads/{}'.format(clone_path, branch))
+            "cd {} && git symbolic-ref HEAD refs/heads/'{}'".format(clone_path, branch))
         for commit in Repository(clone_path).traverse_commits():
             all_repos[-1]["contributors"][commit.author.email] = {"email": commit.author.email, "name": commit.author.name,
                                                                   "commit_count": all_repos[-1]["contributors"][commit.author.email]["commit_count"] + 1 if all_repos[-1]["contributors"][commit.author.email] else 1, "branches": list(all_repos[-1]["contributors"][commit.author.email]["branches"]) + [branch] if branch not in list(all_repos[-1]["contributors"][commit.author.email]["branches"]) else all_repos[-1]["contributors"][commit.author.email]["branches"]}
@@ -156,7 +156,7 @@ def getRepoDataToCSV(repo_link, isFork=False, originalRepoUsername=None, origina
 
     pathToCSV = f"reports/{originalRepoUsername}__{originalRepoName}/forks/{username}__{repo_name}.csv" if isFork else f"reports/{username}__{repo_name}/{username}__{repo_name}.csv"
     os.makedirs(os.path.dirname(pathToCSV), exist_ok=True)
-    print(colored("[INFO] Getting Commit Data to CSV...", 'blue'))
+    print(colored("[INFO] Getting Commit Data to CSV...", 'magenta'))
     with open(pathToCSV, "w", newline='', encoding="utf-8") as csv_output_file:
         writer = csv.DictWriter(
             csv_output_file, fieldnames=['branch', 'modified_file', 'hash', 'author_name', 'author_email', 'committer_name', 'committer_email', 'commit_date_utc', 'msg', 'full_path', 'change_type'], extrasaction='ignore')
@@ -203,7 +203,7 @@ def combine(commits, path):
 
 
 def getForkDataToCSV(repo_link):
-    print(colored(f"[INFO] Getting Fork Data for {repo_link}...", 'blue'))
+    print(colored(f"[INFO] Getting Fork Data for {repo_link}...", 'magenta'))
     forks = []
     username, repo_name = extractRepoAndUserFromURL(repo_link)
     for page_data in search_github("https://api.github.com/repos/{}/{}/forks".format(
@@ -277,8 +277,8 @@ def cloneAllRepos():
             '* ') for b in branches.splitlines()][2:]))
         for branch in branches:
             subprocess.getoutput(
-                f'git branch {branch}')
-        print(colored(f"[INFO] {out}", 'blue'))
+                f"git branch '{branch}'")
+        print(colored(f"[INFO] {out}", 'magenta'))
         os.chdir(wd)
         for fork in repo["forks"]:
             f_username, f_repo_name = extractRepoAndUserFromURL(
@@ -294,8 +294,8 @@ def cloneAllRepos():
                 '* ') for b in branches.splitlines()][2:]))
             for branch in branches:
                 subprocess.run(
-                    f'git branch {branch}', shell=True)
-            print(colored(f"[INFO] {out}", 'blue'))
+                    f"git branch '{branch}'", shell=True)
+            print(colored(f"[INFO] {out}", 'magenta'))
             os.chdir(wd)
 
 
@@ -391,7 +391,7 @@ def printRepoAndUserData(repo_link):
 
 def get_emails_from_users_repos():
     print(colored(
-        "[INFO] Getting Emails from Repos", 'blue'))
+        "[INFO] Getting Emails from Repos", 'magenta'))
     regex = "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}\\b"
     toLowerCaseExpression = "{print tolower($0)}"
     wd = os.getcwd()
@@ -414,7 +414,7 @@ def get_emails_from_users_repos():
             r = repo["name"]
             clone_path = 'bare_clones/' + f'{u}__{r}'
             print(colored(
-                f"[INFO] Cloning {repo['html_url']} Repo...", 'blue'))
+                f"[INFO] Cloning {repo['html_url']} Repo...", 'magenta'))
             subprocess.getoutput(
                 f'git clone --mirror {repo["html_url"]} {clone_path}')
             subprocess.getoutput(
@@ -425,7 +425,7 @@ def get_emails_from_users_repos():
             branches = [b.strip('* ') for b in out.splitlines()]
             for branch in branches:
                 emails_output = subprocess.getoutput(
-                    "git symbolic-ref HEAD refs/heads/{} && git shortlog -sea | grep -E -o '{}' | awk '{}' | uniq | grep -wv 'users.noreply.github.com' && git shortlog -sec | grep -E -o '{}' | awk '{}' | uniq | grep -wv 'users.noreply.github.com'".format(branch, regex, toLowerCaseExpression, regex, toLowerCaseExpression))
+                    "git symbolic-ref HEAD refs/heads/'{}' && git shortlog -sea | grep -E -o '{}' | awk '{}' | uniq | grep -wv 'users.noreply.github.com' && git shortlog -sec | grep -E -o '{}' | awk '{}' | uniq | grep -wv 'users.noreply.github.com'".format(branch, regex, toLowerCaseExpression, regex, toLowerCaseExpression))
                 emails.extend(emails_output.split('\n'))
                 emails = list(set(emails))
                 repo_emails.extend(emails_output.split('\n'))
@@ -436,7 +436,7 @@ def get_emails_from_users_repos():
             emails_table.add_row([u, r, repo_emails])
             print(emails_table)
             print(colored(
-                f"[INFO] Getting Email Data to CSV", 'blue'))
+                f"[INFO] Getting Email Data to CSV", 'magenta'))
             write_emails_data_to_CSV(u, r, repo_emails)
             print(colored("[DONE]", 'green'))
             try:
@@ -451,7 +451,7 @@ def get_emails_from_users_repos():
 
 
 if __name__ == "__main__":
-    print(colored("[INFO] Script Started", 'blue'))
+    print(colored("[INFO] Script Started", 'magenta'))
     arg = sys.argv[1]
     given_combining_options = list(
         filter(lambda o: o in COMBINING_OPTIONS, sys.argv))
@@ -479,7 +479,7 @@ if __name__ == "__main__":
         getForkDataToCSV(repo)
         printRepoAndUserData(repo)
     print(colored("[DONE] All Reports Generated\n", 'green'))
-    print(colored("[INFO] Cloning Original of All Repos...\n", 'blue'))
+    print(colored("[INFO] Cloning Original of All Repos...\n", 'magenta'))
     cloneAllRepos()
     if EXPANDING_OPTION:
         get_emails_from_users_repos()
